@@ -1,0 +1,189 @@
+<html>
+<head>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.5.0/Chart.min.js"></script>
+    <title>Data Analysis</title>
+</head>
+<body>
+Choose an event:
+<select name="eventsCombo" id="eventsCombo" onchange="getData()">
+</select>
+
+Choose a step in hours:
+<select name="hoursCombo" id="hoursCombo" onchange="getData()">
+    <option>48</option>
+    <option>24</option>
+    <option>12</option>
+    <option>6</option>
+    <option>4</option>
+    <option>3</option>
+    <option>2</option>
+    <option>1</option>
+</select>
+
+<canvas id="ctr-line-chart" width="800" height="450"></canvas>
+<canvas id="evpm-line-chart" width="800" height="450"></canvas>
+
+<div id="dma-table"></div>
+<div id="siteid-table"></div>
+
+<script>
+    // get event types
+    fetch("/events")
+    .then(response => {
+        if (response.ok) {
+            return response.json();
+        } else {
+            throw new Error("request error")
+        }
+    })
+    .then(data => data.forEach(line => {
+        var selectEvent = document.getElementById("eventsCombo");
+        var opt = document.createElement('option');
+        opt.value = line;
+        opt.innerHTML = line;
+        selectEvent.appendChild(opt);
+
+        // now we have events, get data
+        getData();
+    }))
+    .catch(error => console.error(error));
+
+    var ctrchart = new Chart(document.getElementById("ctr-line-chart"), {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                data: [],
+                label: 'CTR',
+                borderColor: 'green',
+                fill: false
+            }]
+        },
+        options: {
+            title: {
+                display: true,
+                text: 'CTR'
+            }
+        }
+    });
+
+    var evpmchart = new Chart(document.getElementById("evpm-line-chart"), {
+        type: 'line',
+        data: {
+            labels: [],
+            datasets: [{
+                data: [],
+                label: 'EvPM',
+                borderColor: 'blue',
+                fill: false
+            }]
+        },
+        options: {
+            title: {
+                display: true,
+                text: 'EvPM'
+            }
+        }
+    });
+
+
+    function getData() {
+        var hours = document.getElementById('hoursCombo').value;
+        var eventName = document.getElementById('eventsCombo').value;
+        // get all data from server
+        updateCtr(hours);
+        updateEvpm(hours, eventName);
+        updateDma(eventName);
+        updateSiteId(eventName);
+    }
+
+    function updateCtr(hours) {
+        fetch('/ctr?stepInHours=' + hours)
+            .then(response => {
+                if (response.ok) {
+                    return response.json();
+                } else {
+                    throw new Error("request error")
+                }
+            })
+            .then(data => {
+                var timestamps = [];
+                var ctrs = [];
+                data.forEach(ctrinfo => {
+                    timestamps.push(ctrinfo.timestamp);
+                    ctrs.push(ctrinfo.ctr);
+                });
+                ctrchart.data.labels = timestamps;
+                ctrchart.data.datasets[0].data = ctrs;
+                ctrchart.update();
+            })
+            .catch(error => console.error(error));
+    }
+
+    function updateEvpm(hours, eventName) {
+        fetch('/evpm?event=' + eventName + '&stepInHours=' + hours)
+            .then(response => {
+                if (response.ok) {
+                    return response.json();
+                } else {
+                    throw new Error("request error")
+                }
+            })
+            .then(data => {
+                var timestamps = [];
+                var evpms = [];
+                data.forEach(evpminfo => {
+                    timestamps.push(evpminfo.timestamp);
+                    evpms.push(evpminfo.evpm);
+                });
+                evpmchart.data.labels = timestamps;
+                evpmchart.data.datasets[0].data = evpms;
+                evpmchart.update();
+            })
+            .catch(error => console.error(error));
+    }
+
+    function updateDma(eventName) {
+        fetch('/dma?event=' + eventName)
+            .then(response => {
+                if (response.ok) {
+                    return response.json();
+                } else {
+                    throw new Error("request error")
+                }
+            })
+            .then(data => {
+                // fill aggregation DMA table
+                var tablehtml = '<table><tr><th>DMA</th><th>impressions</th><th>CTR</th><th>EvPM</th></tr>';
+                data.forEach(dmainfo => {
+                    tablehtml += '<tr><td>' + dmainfo.dma + '</td><td>' + dmainfo.impressions + '</td><td>' + dmainfo.ctr + '</td><td>' + dmainfo.evpm + '</td</tr>';
+                });
+                tablehtml += '</table>';
+                document.getElementById('dma-table').innerHTML = tablehtml;
+            })
+            .catch(error => console.error(error));
+    }
+
+    function updateSiteId(eventName) {
+        fetch('/siteid?event=' + eventName)
+            .then(response => {
+                if (response.ok) {
+                    return response.json();
+                } else {
+                    throw new Error("request error")
+                }
+            })
+            .then(data => {
+                // fill aggregation siteId table
+                var tablehtml = '<table><tr><th>siteId</th><th>impressions</th><th>CTR</th><th>EvPM</th></tr>';
+                data.forEach(siteidinfo => {
+                    tablehtml += '<tr><td>' + siteidinfo.siteid + '</td><td>' + siteidinfo.impressions + '</td><td>' + siteidinfo.ctr + '</td><td>' + siteidinfo.evpm + '</td</tr>';
+                });
+                tablehtml += '</table>';
+                document.getElementById('siteid-table').innerHTML = tablehtml;
+            })
+            .catch(error => console.error(error));
+    }
+</script>
+</body>
+</html>
